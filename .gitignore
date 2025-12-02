@@ -1,0 +1,14 @@
+# Data files
+data.json
+errors.txt
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Editor files
+.vscode/
+.idea/
+
