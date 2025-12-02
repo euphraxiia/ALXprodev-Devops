@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Summarize Pokémon Data Script
+# Reads JSON files from pokemon_data/ and generates:
+# - pokemon_report.csv with Name, Height (m), Weight (kg)
+# - Average height and weight printed to stdout
+
+DATA_DIR="pokemon_data"
+REPORT_FILE="pokemon_report.csv"
+
+# Ensure data directory exists
+if [ ! -d "$DATA_DIR" ]; then
+    echo "Error: $DATA_DIR directory not found. Run batchProcessing-0x02 first." >&2
+    exit 1
+fi
+
+# Find JSON files
+json_files=("$DATA_DIR"/*.json)
+
+if [ ! -e "${json_files[0]}" ]; then
+    echo "Error: No JSON files found in $DATA_DIR. Run batchProcessing-0x02 first." >&2
+    exit 1
+fi
+
+# Write CSV header
+echo "Name,Height (m),Weight (kg)" > "$REPORT_FILE"
+
+# Extract data from each JSON file and append to CSV
+for file in "${json_files[@]}"; do
+    name=$(jq -r '.name' "$file")
+    height_dm=$(jq -r '.height' "$file")   # decimeters
+    weight_hg=$(jq -r '.weight' "$file")   # hectograms
+
+    # Convert to meters and kg with one decimal place
+    height_m=$(echo "$height_dm" | awk '{printf "%.1f", $1/10}')
+    weight_kg=$(echo "$weight_hg" | awk '{printf "%.1f", $1/10}')
+
+    # Capitalize name
+    name_cap=$(echo "$name" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+
+    echo "$name_cap,$height_m,$weight_kg" >> "$REPORT_FILE"
+done
+
+echo "CSV Report generated at: $REPORT_FILE"
+echo
+cat "$REPORT_FILE"
+echo
+
+# Use awk to calculate averages (skip header)
+awk -F',' 'NR>1 {sum_h+=$2; sum_w+=$3; n++} END {if(n>0){printf "Average Height: %.2f m\nAverage Weight: %.2f kg\n", sum_h/n, sum_w/n}}' "$REPORT_FILE"
+
+
