@@ -16,22 +16,55 @@ POKEMON_LIST=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 # Delay (in seconds) between requests to avoid rate limiting
 REQUEST_DELAY=2
 
+# Maximum number of retry attempts
+MAX_RETRIES=3
+
+# Error log file
+ERROR_LOG="errors.txt"
+
 for pokemon in "${POKEMON_LIST[@]}"; do
     echo "Fetching data for ${pokemon}..."
 
     output_file="${OUTPUT_DIR}/${pokemon}.json"
+    success=false
+    attempt=1
 
-    # Make API request
-    response=$(curl -s -w "\n%{http_code}" "${API_BASE_URL}/${pokemon}")
-    http_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | sed '$d')
+    # Retry loop: attempt up to MAX_RETRIES times
+    while [ $attempt -le $MAX_RETRIES ] && [ "$success" = false ]; do
+        # Make API request
+        response=$(curl -s -w "\n%{http_code}" "${API_BASE_URL}/${pokemon}" 2>&1)
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$d')
 
-    if [ "$http_code" -eq 200 ]; then
-        echo "$body" > "$output_file"
-        echo "Saved data to ${output_file} ✅"
-    else
-        echo "Failed to fetch data for ${pokemon} (HTTP ${http_code})" >&2
-    fi
+        # Check if request was successful
+        if [ "$http_code" -eq 200 ] && [ -n "$body" ] && echo "$body" | jq empty 2>/dev/null; then
+            echo "$body" > "$output_file"
+            echo "Saved data to ${output_file} ✅"
+            success=true
+        else
+            # Handle different error scenarios
+            if [ -z "$http_code" ] || [ "$http_code" = "000" ]; then
+                error_msg="Network error: Failed to connect to API"
+            elif [ "$http_code" -eq 404 ]; then
+                error_msg="Invalid Pokémon name: ${pokemon} not found (HTTP 404)"
+            elif [ "$http_code" -ge 500 ]; then
+                error_msg="Server error: API returned HTTP ${http_code}"
+            else
+                error_msg="Request failed: HTTP ${http_code}"
+            fi
+
+            if [ $attempt -lt $MAX_RETRIES ]; then
+                echo "Attempt ${attempt} failed for ${pokemon}: ${error_msg}. Retrying..." >&2
+                sleep "$REQUEST_DELAY"
+            else
+                # All retries exhausted, log error and skip
+                echo "Failed to fetch data for ${pokemon} after ${MAX_RETRIES} attempts: ${error_msg}" >> "$ERROR_LOG"
+                echo "Failed to fetch data for ${pokemon} after ${MAX_RETRIES} attempts: ${error_msg}" >&2
+            fi
+        fi
+
+        attempt=$((attempt + 1))
+    done
 
     # Delay between requests to handle potential rate limiting
     sleep "$REQUEST_DELAY"
