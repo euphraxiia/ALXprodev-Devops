@@ -19,16 +19,15 @@ weight=$(jq -r '.weight' "$JSON_FILE")
 type=$(jq -r '.types[0].type.name' "$JSON_FILE")
 
 # Convert height from decimeters to meters (divide by 10)
-height_m=$(echo "$height" | awk '{printf "%.1f", $1/10}')
+formatted_height=$(echo "$height" | awk '{printf "%.1f", $1/10}')
 
 # Convert weight from hectograms to kg (divide by 10)
-weight_kg=$(echo "$weight" | awk '{printf "%.0f", $1/10}')
+formatted_weight=$(echo "$weight" | awk '{printf "%.0f", $1/10}')
 
 # Capitalize name and type using awk
-name_capitalized=$(echo "$name" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
-type_capitalized=$(echo "$type" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+name=$(echo "$name" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+type=$(echo "$type" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
 
 # Format and output using sed for final text processing
-output="$name_capitalized is of type $type_capitalized, weighs ${weight_kg}kg, and is ${height_m}m tall."
-echo "$output" | sed 's/^\(.*\)$/\1/'
+echo "$name is of type $type, weighs ${formatted_weight}kg, and is ${formatted_height}m tall." | sed 's/^\(.*\)$/\1/'
 
