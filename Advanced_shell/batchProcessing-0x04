@@ -53,20 +53,50 @@ fetch_pokemon() {
 export -f fetch_pokemon
 export API_BASE_URL OUTPUT_DIR ERROR_LOG
 
-# Array to store process IDs
-declare -a pids=()
+# Cleanup function to kill background jobs on exit
+cleanup() {
+    echo "Cleaning up background jobs..."
+    # Kill all background jobs using jobs command
+    jobs -p | while read pid; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null
+        fi
+    done
+    wait
+}
+
+# Set trap to cleanup on script exit
+trap cleanup EXIT INT TERM
 
 # Launch background processes for each Pokémon
 for pokemon in "${POKEMON_LIST[@]}"; do
     fetch_pokemon "$pokemon" &
-    pids+=($!)
 done
 
 # Wait for all background processes to complete
 echo "Waiting for all processes to complete..."
-for pid in "${pids[@]}"; do
-    wait "$pid"
+
+# Monitor background jobs using jobs command
+while [ $(jobs -r | wc -l) -gt 0 ]; do
+    # Check status of background jobs
+    jobs > /dev/null 2>&1
+    sleep 0.1
 done
 
-echo "All Pokémon data fetching completed."
+# Wait for all jobs to complete
+wait
+
+# Verify all jobs are done using jobs command
+if [ $(jobs -r | wc -l) -eq 0 ]; then
+    echo "All Pokémon data fetching completed."
+    # Disable trap since we completed successfully
+    trap - EXIT INT TERM
+else
+    echo "Warning: Some background jobs may still be running"
+    jobs
+    # Kill any remaining jobs
+    jobs -p | while read pid; do
+        kill "$pid" 2>/dev/null
+    done
+fi
 
